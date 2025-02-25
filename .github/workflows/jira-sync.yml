@@ -1,0 +1,114 @@
+# Jira Sync workflow for hvd modules. This workflow is invoked from workflows in the hvd module repos.
+# 
+
+on: 
+    workflow_call:
+    
+        secrets:
+            JIRA_BASE_URL:
+                required: true
+            JIRA_USER_EMAIL:
+                required: true
+            JIRA_API_TOKEN:
+                required: true
+
+name: JIRA Sync
+jobs:
+    sync:
+      runs-on: ubuntu-latest
+      name: Jira sync
+      steps:
+      - name: Preprocess
+        if: github.event.action == 'opened' || github.event.action == 'created'
+        id: preprocess
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request_target" ]]; then
+            echo "type=PR" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=ISS" >> "$GITHUB_OUTPUT"
+          fi
+  
+      - name: Create ticket
+        if: |
+          github.event.action == 'opened'
+          && !(github.event.pull_request && contains(github.event.pull_request.labels.*.name, 'dependencies'))
+          && (github.actor != 'dependabot[bot]')
+        uses: hashicorp/gh-action-jira-create@84c84ad564106f548729912dbda38d66ef117bb7 # v0.3.0
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        with:
+          project: HDM
+          #issuetype: "GH Issue"
+          issuetype: "Bug"
+          summary: "${{ github.event.repository.name }} [${{ steps.preprocess.outputs.type }} #${{ github.event.issue.number || github.event.pull_request.number }}]: ${{ github.event.issue.title || github.event.pull_request.title }}"
+          description: "${{ github.event.issue.body || github.event.pull_request.body }}\n\n_Created from GitHub Action for ${{ github.event.issue.html_url || github.event.pull_request.html_url }} from ${{ github.actor }}_"
+          # customfield_10089 is Issue Link custom field
+          extraFields: '{"customfield_10089": "${{ github.event.issue.html_url || github.event.pull_request.html_url }}"}'
+  
+      - name: Search
+        if: github.event.action != 'opened'
+        id: search
+        uses: hashicorp/gh-action-jira-search@2b531eaa4b2380fa268fbe94b80bc92109c92d5d # v0.3.0
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        with:
+          # cf[10089] is Issue Link custom field
+          jql: 'project = "HDM" and cf[10089]="${{ github.event.issue.html_url || github.event.pull_request.html_url }}"'
+  
+      - name: Fetch ticket status
+        if: steps.search.outputs.issue
+        id: status
+        run: |
+          status_name="$(curl --show-error --fail --silent \
+            --url "${{ secrets.JIRA_BASE_URL }}/rest/api/3/issue/${{ steps.search.outputs.issue }}?fields=status" \
+            --user "${{ secrets.JIRA_USER_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+            --header "Content-Type: application/json" \
+          | jq -r .fields.status.name)"
+          echo "status=${status_name}" >> $GITHUB_OUTPUT
+  
+      - name: Sync comment
+        if: github.event.action == 'created' && steps.search.outputs.issue
+        uses: hashicorp/gh-action-jira-comment@9e4a11098f8bd0d12745708d4d4b63c5a81df2fc # v0.3.0
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        with:
+          issue: ${{ steps.search.outputs.issue }}
+          comment: "${{ github.actor }} ${{ github.event.review.state || 'commented' }}:\n\n${{ github.event.comment.body || github.event.review.body }}\n\n${{ github.event.comment.html_url || github.event.review.html_url }}"
+  
+      - name: Transitions
+        id: transitions
+        if: steps.search.outputs.issue
+        run: |
+          if [[ "${{ github.event.action }}" == "closed" || "${{ github.event.action }}" == "deleted" ]]; then
+            echo "Closing ticket"
+            echo "name=Closed" >> $GITHUB_OUTPUT
+            elif [[ "${{ github.event_name }}" == "issue_comment" && "${{ steps.status.outputs.status }}" == "Icebox" ]]; then
+            echo "Thawing ticket"
+            echo "name=Pending Triage" >> $GITHUB_OUTPUT
+            elif [[ "${{ github.event.action }}" == "reopened" ]]; then
+            echo "Reopening ticket"
+            echo "name=Reopen" >> $GITHUB_OUTPUT
+          fi
+  
+      # Transition issue API reference: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-transitions-post
+      - name: Transition ticket
+        if: steps.transitions.outputs.name
+        run: |
+          transitions="$(curl --show-error --fail --silent \
+            --url "${{ secrets.JIRA_BASE_URL }}/rest/api/3/issue/${{ steps.search.outputs.issue }}/transitions" \
+            --user "${{ secrets.JIRA_USER_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+            --header "Accept: application/json")"
+          id="$(echo "${transitions}" | jq -r '.transitions[] | select(.name == "${{ steps.transitions.outputs.name }}") | .id')"
+  
+          curl --show-error --fail --silent \
+            --url "${{ secrets.JIRA_BASE_URL }}/rest/api/3/issue/${{ steps.search.outputs.issue }}/transitions" \
+            --user "${{ secrets.JIRA_USER_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+            --header "Accept: application/json" \
+            --header "Content-Type: application/json" \
+            --data "$(printf '{"transition": {"id": "%s"}}' "${id}")"
