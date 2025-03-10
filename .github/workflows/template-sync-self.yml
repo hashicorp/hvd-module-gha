@@ -1,0 +1,25 @@
+# Template Sync workflow for hvd modules. This workflow is used to keep the gha repo in sync with the template repo.
+
+on:
+  schedule:
+    - cron: "0 0 1 * *"
+  workflow_dispatch:
+
+jobs:
+    repo-sync:
+      runs-on: ubuntu-latest
+      permissions:
+        contents: write
+        pull-requests: write
+  
+      steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  
+      - name: actions-template-sync
+        uses: AndreasAugustin/actions-template-sync@bcb94410a4f1dffdfe5eaabc8234c3b8e76ebc5b # v2.5.1
+        with:
+          source_repo_path: hashicorp/hvd-module-template
+          upstream_branch: main 
+          pr_labels: template_sync
+
