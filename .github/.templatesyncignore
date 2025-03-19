@@ -1,2 +1,2 @@
-# Ignore sub folders under the .github folder
-.github/*
+# Ignore the workflows folder
+.github/workflows/*
