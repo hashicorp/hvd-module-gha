@@ -1,4 +1,5 @@
 # Template Sync workflow for hvd modules. This workflow is invoked from workflows in the hvd module repos.
+name: Template Sync
 
 on:
   workflow_call:

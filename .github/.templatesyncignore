@@ -1,0 +1,2 @@
+# Ignore sub folders under the .github folder
+.github/*
