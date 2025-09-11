@@ -1,0 +1,48 @@
+name: workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      mod_:
+        description: 'Update the version and release `semver:major.minor.patch`, i.e. x.x.x format'
+        required: true
+        type: string
+
+  # pull_request:
+  #   types: [closed]
+  #   paths:
+  #     - '.env.local'
+permissions:
+  actions: write
+  contents: write
+  packages: write
+
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with: { go-version: '1.20' }
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        with: { terraform_version: '1.9.0' }
+
+      - name: Install Task
+        uses: arduino/setup-task@v1
+        with:
+          version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run release
+        run: task release
