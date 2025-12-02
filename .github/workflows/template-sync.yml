@@ -3,6 +3,10 @@ name: Template Sync
 
 on:
   workflow_call:
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
 
 jobs:
     repo-sync:
@@ -10,15 +14,15 @@ jobs:
       permissions:
         contents: write
         pull-requests: write
-  
+
       steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-  
+
       - name: actions-template-sync
         uses: AndreasAugustin/actions-template-sync@bcb94410a4f1dffdfe5eaabc8234c3b8e76ebc5b # v2.5.1
         with:
           source_repo_path: hashicorp/hvd-module-template
-          upstream_branch: main 
+          upstream_branch: main
           pr_labels: template_sync
 

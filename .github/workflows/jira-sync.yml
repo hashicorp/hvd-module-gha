@@ -1,9 +1,9 @@
 # Jira Sync workflow for hvd modules. This workflow is invoked from workflows in the hvd module repos.
-# 
+#
 
-on: 
+on:
     workflow_call:
-    
+
         secrets:
             JIRA_BASE_URL:
                 required: true
@@ -11,6 +11,10 @@ on:
                 required: true
             JIRA_API_TOKEN:
                 required: true
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
 
 name: JIRA Sync
 jobs:
@@ -27,7 +31,7 @@ jobs:
           else
             echo "type=ISS" >> "$GITHUB_OUTPUT"
           fi
-  
+
       - name: Create ticket
         if: |
           github.event.action == 'opened'
@@ -46,7 +50,7 @@ jobs:
           description: "${{ github.event.issue.body || github.event.pull_request.body }}\n\n_Created from GitHub Action for ${{ github.event.issue.html_url || github.event.pull_request.html_url }} from ${{ github.actor }}_"
           # customfield_10089 is Issue Link custom field
           extraFields: '{"customfield_10089": "${{ github.event.issue.html_url || github.event.pull_request.html_url }}"}'
-  
+
       - name: Search
         if: github.event.action != 'opened'
         id: search
@@ -58,7 +62,7 @@ jobs:
         with:
           # cf[10089] is Issue Link custom field
           jql: 'project = "HDM" and cf[10089]="${{ github.event.issue.html_url || github.event.pull_request.html_url }}"'
-  
+
       - name: Fetch ticket status
         if: steps.search.outputs.issue
         id: status
@@ -69,7 +73,7 @@ jobs:
             --header "Content-Type: application/json" \
           | jq -r .fields.status.name)"
           echo "status=${status_name}" >> $GITHUB_OUTPUT
-  
+
       - name: Sync comment
         if: github.event.action == 'created' && steps.search.outputs.issue
         uses: hashicorp/gh-action-jira-comment@9e4a11098f8bd0d12745708d4d4b63c5a81df2fc # v0.3.0
@@ -80,7 +84,7 @@ jobs:
         with:
           issue: ${{ steps.search.outputs.issue }}
           comment: "${{ github.actor }} ${{ github.event.review.state || 'commented' }}:\n\n${{ github.event.comment.body || github.event.review.body }}\n\n${{ github.event.comment.html_url || github.event.review.html_url }}"
-  
+
       - name: Transitions
         id: transitions
         if: steps.search.outputs.issue
@@ -95,7 +99,7 @@ jobs:
             echo "Reopening ticket"
             echo "name=Reopen" >> $GITHUB_OUTPUT
           fi
-  
+
       # Transition issue API reference: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-transitions-post
       - name: Transition ticket
         if: steps.transitions.outputs.name
@@ -105,7 +109,7 @@ jobs:
             --user "${{ secrets.JIRA_USER_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
             --header "Accept: application/json")"
           id="$(echo "${transitions}" | jq -r '.transitions[] | select(.name == "${{ steps.transitions.outputs.name }}") | .id')"
-  
+
           curl --show-error --fail --silent \
             --url "${{ secrets.JIRA_BASE_URL }}/rest/api/3/issue/${{ steps.search.outputs.issue }}/transitions" \
             --user "${{ secrets.JIRA_USER_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
