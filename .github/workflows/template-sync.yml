@@ -16,7 +16,7 @@ jobs:
 
       steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v6
 
       - name: actions-template-sync
         uses: AndreasAugustin/actions-template-sync@8ec19a5f2721ffb81ff809aa340ddf75e6a85ea6 # v2.5.2
