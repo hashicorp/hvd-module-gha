@@ -14,7 +14,7 @@ jobs:
         terraform_version: [~>1.9.0, ~>1.10.0, ~>1.11.0, ~>1.12.0, ~>1.13.0]
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@5b1ab0e78ebe92dd62371fe966bbcaade67a56bd # v3.1.2
         with:
