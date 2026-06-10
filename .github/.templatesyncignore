@@ -1,3 +1,5 @@
 # Ignore the workflows folder
 .github/workflows/*
 .github/dependabot.yml
+.github/scripts
+Taskfile.yml
